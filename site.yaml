@@ -1,0 +1,128 @@
+---
+- name: Deploy Flask app on webservers
+  hosts: webservers
+  become: yes
+
+  vars:
+    app_dir: "/opt/NSO_A2"
+    flask_port: 5000
+
+  tasks:
+    - name: Install required packages
+      apt:
+        name:
+          - python3
+          - python3-venv
+          - python3-pip
+        state: present
+        update_cache: yes
+
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create Flask app
+      copy:
+        dest: "{{ app_dir }}/application2.py"
+        content: |
+          import flask
+          import time
+          import socket
+
+          h_name = socket.gethostname()
+
+          try:
+              IP_addres = socket.gethostbyname(h_name)
+          except:
+              IP_addres = "unknown"
+
+          app = flask.Flask(__name__)
+
+          @app.route('/')
+          def index():
+              Time = time.strftime("%H:%M:%S")
+              return Time + " Serving from " + h_name + " (" + IP_addres + ")\n"
+
+          if __name__ == "__main__":
+              app.run(host="0.0.0.0", port=5000)
+
+    - name: Create virtual environment
+      command: python3 -m venv {{ app_dir }}/venv
+      args:
+        creates: "{{ app_dir }}/venv/bin/activate"
+
+    - name: Install Flask
+      command: "{{ app_dir }}/venv/bin/pip install flask"
+
+    - name: Create systemd service
+      copy:
+        dest: /etc/systemd/system/flask_app.service
+        content: |
+          [Unit]
+          Description=Flask App
+          After=network.target
+
+          [Service]
+          User=ubuntu
+          WorkingDirectory={{ app_dir }}
+          ExecStart={{ app_dir }}/venv/bin/python {{ app_dir }}/application2.py
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: restart flask
+
+    - name: Enable and start Flask
+      systemd:
+        name: flask_app
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Wait for Flask app
+      wait_for:
+        host: 127.0.0.1
+        port: "{{ flask_port }}"
+        timeout: 30
+
+  handlers:
+    - name: restart flask
+      systemd:
+        name: flask_app
+        state: restarted
+        daemon_reload: yes
+
+
+- name: Configure HAProxy
+  hosts: HAproxy
+  become: yes
+
+  vars:
+    flask_port: 5000
+
+  tasks:
+    - name: Install HAProxy
+      apt:
+        name: haproxy
+        state: present
+        update_cache: yes
+
+    - name: Configure HAProxy
+      template:
+        src: templates/haproxy.cfg.j2
+        dest: /etc/haproxy/haproxy.cfg
+      notify: restart haproxy
+
+    - name: Restart HAProxy immediately
+      systemd:
+        name: haproxy
+        state: restarted
+        enabled: yes
+
+  handlers:
+    - name: restart haproxy
+      systemd:
+        name: haproxy
+        state: restarted
