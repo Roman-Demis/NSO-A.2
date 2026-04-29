@@ -5,7 +5,7 @@
 
   vars:
     app_dir: "/opt/NSO_A2"
-    flask_port: 80
+    flask_port: 5000
 
   tasks:
     - name: Install required packages
@@ -46,7 +46,7 @@
               return Time + " Serving from " + h_name + " (" + IP_addres + ")\n"
 
           if __name__ == "__main__":
-              app.run(host="0.0.0.0", port=80)
+              app.run(host="0.0.0.0", port=5000)
 
     - name: Create virtual environment
       command: python3 -m venv {{ app_dir }}/venv

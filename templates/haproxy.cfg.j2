@@ -5,14 +5,14 @@ global
     group haproxy
 
 defaults
-    log     global
-    mode    http
-    option  httplog
-    option  dontlognull
+    log global
+    mode http
+    option httplog
+    option dontlognull
     retries 3
     timeout connect 5000
-    timeout client  50000
-    timeout server  50000
+    timeout client 50000
+    timeout server 50000
 
 frontend http_front
     bind *:80
@@ -22,5 +22,5 @@ backend flask_servers
     balance roundrobin
     option httpchk GET /
 {% for host in groups['webservers'] %}
-    server {{ host }} {{ hostvars[host]['ansible_host'] }}:80 check
+    server {{ host }} {{ hostvars[host]['ansible_host'] }}:5000 check
 {% endfor %}
